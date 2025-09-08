@@ -1,0 +1,378 @@
+// name the package in IntelliJ IDEA as 'demo' and create java class in it named as 'Main'
+package com.example.demo;
+
+import javafx.application.Application;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.stage.Stage;
+
+import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class Main extends Application {
+    private static final String FILE_PATH = "tasks.txt";
+    private static final Object fileLock = new Object();
+    private static final String PASSWORD = "123";  // Change as needed
+
+    @Override
+    public void start(Stage stage) {
+        showLoginUI(stage);
+    }
+
+    private void showLoginUI(Stage stage) {
+        Label icon = new Label("🔒");
+        icon.setFont(Font.font("Arial", FontWeight.BOLD, 48));
+
+        Label heading = new Label("Welcome to Task Manager");
+        heading.setFont(Font.font("Arial", FontWeight.BOLD, 28));
+        heading.setTextFill(Color.web("#37474F"));
+
+        Label sub = new Label("\nPlease enter your password to continue");
+        sub.setFont(Font.font("Arial", 14));
+        sub.setTextFill(Color.web("#607D8B"));
+
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Enter Password");
+        passwordField.setStyle(
+                "-fx-background-radius: 10; -fx-border-radius: 10; -fx-padding: 10;"
+        );
+
+        Label errorLabel = new Label();
+        errorLabel.setTextFill(Color.web("#EF5350"));
+
+        Button loginButton = styledButton("🔓 Login", "#4CAF50");
+
+        loginButton.setOnAction(e -> {
+            String input = passwordField.getText();
+            if (PASSWORD.equals(input)) {
+                showMainMenu(stage);
+            } else {
+                errorLabel.setText("Incorrect Password. Try Again");
+                passwordField.clear();
+            }
+        });
+
+        VBox card = new VBox(10, icon, heading, sub, passwordField, loginButton, errorLabel);
+        card.setAlignment(Pos.CENTER);
+        card.setPadding(new Insets(25));
+        card.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 20; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 10, 0.1, 0, 5);"
+        );
+
+        VBox root = new VBox(card);
+        root.setAlignment(Pos.CENTER);
+        root.setStyle("-fx-background-color: linear-gradient(to bottom, #E3F2FD, #FAFAFA);");
+
+        Scene loginScene = new Scene(root, 550, 550);
+        stage.setScene(loginScene);
+        stage.setTitle("Login");
+        stage.show();
+    }
+
+
+    private void showMainMenu(Stage stage) {
+        Label titleLabel = new Label("📅 TASK MANAGER");
+        titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 28));
+        titleLabel.setTextFill(Color.web("#37474F"));
+
+        Label menuLabel = new Label("\nMain Menu\n");
+        menuLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
+        menuLabel.setTextFill(Color.web("#37474F"));
+
+        Button addTask = styledButton("➕ Add Task", "#4CAF50");
+        Button viewTasks = styledButton("📋 View Tasks", "#4CAF50");
+        Button removeTask = styledButton("🗑️ Remove Task", "#EF5350");
+        Button markCompleted = styledButton("✅ Mark Completed", "#81D4FA");
+        Button searchTask = styledButton("🔍 Search Task", "#81D4FA");
+
+        addTask.setOnAction(e -> showAddTaskUI(stage));
+        viewTasks.setOnAction(e -> showViewTasksUI(stage));
+        removeTask.setOnAction(e -> showRemoveTaskUI(stage));
+        markCompleted.setOnAction(e -> showMarkCompletedUI(stage));
+        searchTask.setOnAction(e -> showSearchTaskUI(stage));
+
+        VBox menu = new VBox(15, titleLabel, menuLabel, addTask, viewTasks, removeTask, markCompleted, searchTask);
+        menu.setAlignment(Pos.CENTER);
+        menu.setPadding(new Insets(30));
+        menu.setStyle("-fx-background-color: #FAFAFA;");
+
+        stage.setScene(new Scene(menu, 550, 550));
+        stage.setTitle("Task Scheduler");
+        stage.show();
+    }
+
+    private void showAddTaskUI(Stage stage) {
+        Label label = new Label("Enter Task Details:");
+        label.setTextFill(Color.web("#37474F"));
+        label.setFont(Font.font("Arial", FontWeight.SEMI_BOLD, 18));
+
+        TextField titleField = new TextField(); titleField.setPromptText("Title");
+        TextField descField = new TextField(); descField.setPromptText("Description");
+        TextField dueField = new TextField(); dueField.setPromptText("Due Date");
+        TextField priorityField = new TextField(); priorityField.setPromptText("Priority");
+
+        Button saveButton = styledButton("💾 Save Task", "#4CAF50");
+        Button backButton = styledButton("🔙 Back", "#81D4FA");
+
+        saveButton.setOnAction(e -> {
+            String title = titleField.getText().trim();
+            String description = descField.getText().trim();
+            String dueDate = dueField.getText().trim();
+            String priority = priorityField.getText().trim();
+
+            boolean exists = false;
+            synchronized (fileLock) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(FILE_PATH))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (line.toLowerCase().startsWith(title.toLowerCase() + " | ")) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                } catch (IOException ex) {
+                    showAlert("Error", "Failed to read tasks.");
+                    return;
+                }
+            }
+
+            if (exists) {
+                showAlert("Duplicate Task", "A task with this title already exists. Please choose a different title.");
+                return;
+            }
+
+            String line = String.join(" | ", title, description, dueDate, priority, "Pending");
+            synchronized (fileLock) {
+                try (PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(FILE_PATH, true)))) {
+                    writer.println(line);
+                } catch (IOException ex) {
+                    showAlert("Error", "Failed to save task.");
+                    return;
+                }
+            }
+
+            titleField.clear(); descField.clear(); dueField.clear(); priorityField.clear();
+            showAlert("Success", "Task added!");
+        });
+
+        backButton.setOnAction(e -> showMainMenu(stage));
+
+        VBox box = new VBox(12, label, titleField, descField, dueField, priorityField, saveButton, backButton);
+        box.setAlignment(Pos.CENTER);
+        box.setPadding(new Insets(30));
+        box.setStyle("-fx-background-color: #FAFAFA;");
+        stage.setScene(new Scene(box, 550, 550));
+    }
+
+    private void showViewTasksUI(Stage stage) {
+        Label label = new Label("Your Tasks:");
+        label.setTextFill(Color.web("#37474F"));
+        label.setFont(Font.font("Arial", FontWeight.SEMI_BOLD, 18));
+
+        TextArea area = new TextArea();
+        area.setEditable(false);
+        area.setPrefHeight(350);
+
+        StringBuilder content = new StringBuilder();
+        synchronized (fileLock) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(FILE_PATH))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line).append("\n");
+                }
+            } catch (IOException e) {
+                content.append("No tasks found.");
+            }
+        }
+        area.setText(content.toString());
+
+        Button backButton = styledButton("🔙 Back", "#81D4FA");
+        backButton.setOnAction(e -> showMainMenu(stage));
+
+        VBox box = new VBox(12, label, area, backButton);
+        box.setAlignment(Pos.CENTER);
+        box.setPadding(new Insets(30));
+        box.setStyle("-fx-background-color: #FAFAFA;");
+        stage.setScene(new Scene(box, 550, 550));
+    }
+
+    private void showRemoveTaskUI(Stage stage) {
+        Label label = new Label("Enter Title to Remove:");
+        label.setTextFill(Color.web("#37474F"));
+        label.setFont(Font.font("Arial", FontWeight.SEMI_BOLD, 18));
+
+        TextField titleField = new TextField();
+
+        Button removeButton = styledButton("🗑️ Remove", "#EF5350");
+        Button backButton = styledButton("🔙 Back", "#81D4FA");
+
+        removeButton.setOnAction(e -> {
+            String title = titleField.getText().trim();
+            boolean found = false;
+            List<String> updated = new ArrayList<>();
+
+            synchronized (fileLock) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(FILE_PATH))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (!line.toLowerCase().startsWith(title.toLowerCase() + " | ")) {
+                            updated.add(line);
+                        } else {
+                            found = true;
+                        }
+                    }
+                } catch (IOException ex) {
+                    showAlert("Error", "File read failed.");
+                    return;
+                }
+
+                try (PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(FILE_PATH)))) {
+                    for (String l : updated) writer.println(l);
+                } catch (IOException ex) {
+                    showAlert("Error", "File write failed.");
+                    return;
+                }
+            }
+
+            titleField.clear();
+            showAlert("Result", found ? "Task removed." : "Task not found.");
+        });
+
+        backButton.setOnAction(e -> showMainMenu(stage));
+        VBox box = new VBox(12, label, titleField, removeButton, backButton);
+        box.setAlignment(Pos.CENTER);
+        box.setPadding(new Insets(30));
+        box.setStyle("-fx-background-color: #FAFAFA;");
+        stage.setScene(new Scene(box, 550, 550));
+    }
+
+    private void showMarkCompletedUI(Stage stage) {
+        Label label = new Label("Mark Task as Completed:");
+        label.setTextFill(Color.web("#37474F"));
+        label.setFont(Font.font("Arial", FontWeight.SEMI_BOLD, 18));
+
+        TextField titleField = new TextField();
+
+        Button markButton = styledButton("✅ Mark Completed", "#81D4FA");
+        Button backButton = styledButton("🔙 Back", "#81D4FA");
+
+        markButton.setOnAction(e -> {
+            String title = titleField.getText().trim();
+            boolean found = false;
+            List<String> updated = new ArrayList<>();
+
+            synchronized (fileLock) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(FILE_PATH))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        String[] parts = line.split(" \\| ");
+                        if (parts.length == 5 && parts[0].equalsIgnoreCase(title)) {
+                            parts[4] = "Completed";
+                            line = String.join(" | ", parts);
+                            found = true;
+                        }
+                        updated.add(line);
+                    }
+                } catch (IOException ex) {
+                    showAlert("Error", "Read error.");
+                    return;
+                }
+
+                try (PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(FILE_PATH)))) {
+                    for (String l : updated) writer.println(l);
+                } catch (IOException ex) {
+                    showAlert("Error", "Write error.");
+                    return;
+                }
+            }
+
+            titleField.clear();
+            showAlert("Result", found ? "Task marked as completed." : "Task not found.");
+        });
+
+        backButton.setOnAction(e -> showMainMenu(stage));
+        VBox box = new VBox(12, label, titleField, markButton, backButton);
+        box.setAlignment(Pos.CENTER);
+        box.setPadding(new Insets(30));
+        box.setStyle("-fx-background-color: #FAFAFA;");
+        stage.setScene(new Scene(box, 550, 550));
+    }
+
+    private void showSearchTaskUI(Stage stage) {
+        Label label = new Label("Search Task by Title:");
+        label.setTextFill(Color.web("#37474F"));
+        label.setFont(Font.font("Arial", FontWeight.SEMI_BOLD, 18));
+
+        TextField titleField = new TextField();
+        TextArea resultArea = new TextArea();
+        resultArea.setEditable(false);
+        resultArea.setPrefHeight(100);
+
+        Button searchButton = styledButton("🔍 Search", "#81D4FA");
+        Button backButton = styledButton("🔙 Back", "#81D4FA");
+
+        searchButton.setOnAction(e -> {
+            String title = titleField.getText().trim();
+            String result = "Task not found.";
+
+            synchronized (fileLock) {
+                try (BufferedReader reader = new BufferedReader(new FileReader(FILE_PATH))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (line.toLowerCase().startsWith(title.toLowerCase() + " | ")) {
+                            result = line;
+                            break;
+                        }
+                    }
+                } catch (IOException ex) {
+                    result = "Error reading file.";
+                }
+            }
+
+            titleField.clear();
+            resultArea.setText(result);
+        });
+
+        backButton.setOnAction(e -> showMainMenu(stage));
+        VBox box = new VBox(12, label, titleField, searchButton, resultArea, backButton);
+        box.setAlignment(Pos.CENTER);
+        box.setPadding(new Insets(30));
+        box.setStyle("-fx-background-color: #FAFAFA;");
+        stage.setScene(new Scene(box, 550, 550));
+    }
+
+    private Button styledButton(String text, String color) {
+        Button btn = new Button(text);
+        btn.setStyle(
+                "-fx-background-color: " + color + ";" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 16px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-padding: 10 20;" +
+                        "-fx-background-radius: 12;"
+        );
+        btn.setPrefWidth(240);
+        return btn;
+    }
+
+    private void showAlert(String title, String msg) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(msg);
+        alert.showAndWait();
+    }
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+}
